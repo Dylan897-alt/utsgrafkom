@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Sprout - WebGL</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #a8dcfc;
+            font-family: sans-serif;
+        }
+        #mycanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ffffff;
+            background: rgba(26, 36, 56, 0.85);
+            padding: 12px 18px;
+            border-radius: 8px;
+            pointer-events: none;
+            font-size: 13px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            line-height: 1.5;
+        }
+    </style>
+    <script src="libs.js"></script>
+    <script type="module" src="sprout.js"></script>
+</head>
+<body>
+    <div id="ui-overlay">
+        <b>Drag Klik Kiri:</b> Rotasi 3D Sprout (Atas / Bawah / Kiri / Kanan)<br>
+        <b>Drag Klik Kanan / Tombol Panah / WASD:</b> Geser Posisi Sprout<br>
+        <b>Scroll Mouse:</b> Zoom In / Zoom Out
+    </div>
+    <canvas id="mycanvas"></canvas>
+</body>
+</html>
