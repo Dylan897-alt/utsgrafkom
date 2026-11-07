@@ -125,6 +125,9 @@ function main() {
     var spShootStart    = 0.0;
     var spSpawnedProj   = false;
     var spProjectiles   = [];
+    var spDead          = false;
+    var spDeathStart    = 0.0;
+    var spDeathAxis     = [0.75, 0.0, 0.66]; // Sumbu diagonal sembarang untuk animasi tumbang
 
     // Musuh kaktus kecil
     var enemyState     = 'none';
@@ -259,8 +262,15 @@ function main() {
     var keys = {};
     window.addEventListener('keydown', function (e) {
         keys[e.code] = true;
+        if (e.code === 'KeyX' && !e.repeat) {
+            if (!spDead) {
+                spDead       = true;
+                spDeathStart = t;
+                spShooting   = false;
+            }
+        }
         if (e.code === 'Space') {
-            if (!spShooting) {
+            if (!spDead && !spShooting) {
                 spShooting    = true;
                 spShootStart  = t;
                 spSpawnedProj = false;
@@ -268,7 +278,9 @@ function main() {
             e.preventDefault();
         }
         if (e.code === 'KeyC' && !e.repeat) {
-            spTargetScale = spTargetScale + 0.2;
+            if (!spDead) {
+                spTargetScale = spTargetScale + 0.2;
+            }
         }
         // Trigger animasi Spike via Keyboard:
         // Q : Siram air & tumbuh (saat masih seed) / Wave (setelah tumbuh menjadi spike)
@@ -353,12 +365,14 @@ function main() {
         //  UPDATE & RENDER SPROUT (Arrow Keys — sama persis dengan WASD Spike)
         // ================================================================
         var spMx = 0, spMz = 0;
-        if (keys.ArrowUp)    spMz -= 1;
-        if (keys.ArrowDown)  spMz += 1;
-        if (keys.ArrowLeft)  spMx -= 1;
-        if (keys.ArrowRight) spMx += 1;
+        if (!spDead) {
+            if (keys.ArrowUp)    spMz -= 1;
+            if (keys.ArrowDown)  spMz += 1;
+            if (keys.ArrowLeft)  spMx -= 1;
+            if (keys.ArrowRight) spMx += 1;
+        }
 
-        var spWalking = (spMx !== 0 || spMz !== 0);
+        var spWalking = !spDead && (spMx !== 0 || spMz !== 0);
         if (spWalking) {
             var spLen = Math.hypot(spMx, spMz);
             spMx /= spLen;
@@ -378,13 +392,32 @@ function main() {
             spWheelRot  += (2.6 * dt) / 0.32;
         }
 
-        // Bobbing badan saat jalan vs idle (sama seperti Spike)
-        var spBobY = spWalking
-            ? 0.04 + 0.05 * Math.abs(Math.sin(spWalkPhase * 2))
-            : 0.05 * Math.sin(t * 2);
+        // Progress animasi mati tumbang
+        var spDeathElapsed = spDead ? (t - spDeathStart) : 0;
+        var spFallProgress = 0;
+        if (spDead) {
+            if (spDeathElapsed < 0.65) {
+                var pFall = spDeathElapsed / 0.65;
+                spFallProgress = pFall * pFall;
+            } else if (spDeathElapsed < 0.90) {
+                var pBounce = (spDeathElapsed - 0.65) / 0.25;
+                spFallProgress = 1.0 - Math.sin(pBounce * Math.PI) * 0.07;
+            } else {
+                spFallProgress = 1.0;
+            }
+        }
 
-        // Interpolasi halus animasi scaling saat tombol C ditekan
-        spScale += (spTargetScale - spScale) * Math.min(dt * 7, 1);
+        // Bobbing badan saat jalan vs idle (berhenti total ketika mati)
+        var spBobY = spDead
+            ? -0.18 * spScale * LIBS.clamp(spDeathElapsed / 0.65, 0, 1)
+            : (spWalking
+                ? 0.04 + 0.05 * Math.abs(Math.sin(spWalkPhase * 2))
+                : 0.05 * Math.sin(t * 2));
+
+        // Interpolasi halus animasi scaling saat tombol C ditekan (hanya saat masih hidup)
+        if (!spDead) {
+            spScale += (spTargetScale - spScale) * Math.min(dt * 7, 1);
+        }
 
         // Gunakan JOINT_MATRIX untuk translasi dunia & translateY sesuai spScale (1.17 * spScale)
         // agar titik terbawah roda (y lokal = -1.17) selalu menempel tepat di tanah (y = 0)
@@ -394,8 +427,13 @@ function main() {
         LIBS.translateZ(sprout.bodyBase.JOINT_MATRIX, spPosZ);
 
         LIBS.set_I4(sprout.bodyBase.POSITION_MATRIX);
+        delete sprout.bodyBase.MOVE_MATRIX._mode;
         LIBS.set_I4(sprout.bodyBase.MOVE_MATRIX);
         LIBS.rotateY(sprout.bodyBase.MOVE_MATRIX, spFacing);
+        if (spDead) {
+            // Rotasi tumbang ke arah diagonal sembarang (rotation on arbitrary axis)
+            LIBS.rotateAxis(sprout.bodyBase.MOVE_MATRIX, spDeathAxis, spFallProgress * 1.42);
+        }
         LIBS.scaleX(sprout.bodyBase.MOVE_MATRIX, spScale);
         LIBS.scaleY(sprout.bodyBase.MOVE_MATRIX, spScale);
         LIBS.scaleZ(sprout.bodyBase.MOVE_MATRIX, spScale);
@@ -406,25 +444,51 @@ function main() {
         LIBS.set_I4(sprout.rightWheel.MOVE_MATRIX);
         LIBS.rotateY(sprout.rightWheel.MOVE_MATRIX, spWheelRot);
 
-        // Ayunan tangan Sprout (persis seperti ayunan lengan WASD Spike: mengayun maju-mundur bergantian)
-        if (spWalking) {
+        if (spDead) {
+            var limpSmooth = LIBS.smoothstep(0, 0.65, spDeathElapsed);
+
+            // Tangan terkulai pada sumbu diagonal sembarang lalu diam
+            delete sprout.leftArm.MOVE_MATRIX._mode;
+            LIBS.set_I4(sprout.leftArm.MOVE_MATRIX);
+            LIBS.rotateAxis(sprout.leftArm.MOVE_MATRIX, [0.8, 0.2, -0.5], limpSmooth * 0.95);
+
+            delete sprout.rightArm.MOVE_MATRIX._mode;
+            LIBS.set_I4(sprout.rightArm.MOVE_MATRIX);
+            LIBS.rotateAxis(sprout.rightArm.MOVE_MATRIX, [0.8, -0.2, 0.5], limpSmooth * 0.85);
+
+            // Kubah kaca miring pada sumbu sembarang dan tidak lagi melakukan animasi idle
+            delete sprout.glassDome.MOVE_MATRIX._mode;
+            LIBS.set_I4(sprout.glassDome.MOVE_MATRIX);
+            LIBS.rotateAxis(sprout.glassDome.MOVE_MATRIX, [0.4, 0.8, 0.4], limpSmooth * 0.35);
+
+            // Tangkai daun terkulai layu pada sumbu diagonal sembarang dan berhenti bergoyang
+            delete sprout.stem.MOVE_MATRIX._mode;
+            LIBS.set_I4(sprout.stem.MOVE_MATRIX);
+            LIBS.rotateAxis(sprout.stem.MOVE_MATRIX, [0.7, 0.0, 0.7], limpSmooth * 0.75);
+        } else if (spWalking) {
+            // Ayunan tangan Sprout (persis seperti ayunan lengan WASD Spike: mengayun maju-mundur bergantian)
             var spArmL = Math.sin(spWalkPhase + Math.PI) * 0.4;
             var spArmR = Math.sin(spWalkPhase) * 0.4;
 
+            delete sprout.leftArm.MOVE_MATRIX._mode;
             LIBS.set_I4(sprout.leftArm.MOVE_MATRIX);
             LIBS.rotateX(sprout.leftArm.MOVE_MATRIX, -spArmL);
             LIBS.rotateZ(sprout.leftArm.MOVE_MATRIX, -0.45);
 
+            delete sprout.rightArm.MOVE_MATRIX._mode;
             LIBS.set_I4(sprout.rightArm.MOVE_MATRIX);
             LIBS.rotateX(sprout.rightArm.MOVE_MATRIX, -spArmR);
             LIBS.rotateZ(sprout.rightArm.MOVE_MATRIX, 0.45);
 
             // Kepala menghadap lurus ke depan saat jalan
+            delete sprout.glassDome.MOVE_MATRIX._mode;
             LIBS.set_I4(sprout.glassDome.MOVE_MATRIX);
         } else {
             var armWave = Math.sin(t * 2.5) * 0.18;
+            delete sprout.leftArm.MOVE_MATRIX._mode;
             LIBS.set_I4(sprout.leftArm.MOVE_MATRIX);
             LIBS.rotateZ(sprout.leftArm.MOVE_MATRIX, -0.45 + armWave);
+            delete sprout.rightArm.MOVE_MATRIX._mode;
             LIBS.set_I4(sprout.rightArm.MOVE_MATRIX);
             LIBS.rotateZ(sprout.rightArm.MOVE_MATRIX, 0.45 - armWave);
 
@@ -442,12 +506,13 @@ function main() {
             var domeProgress = Math.min(domeSegmentTime / domeMoveDuration, 1);
             var domeAngle = domePreviousPosition + (domeTargetPosition - domePreviousPosition) * domeProgress;
 
+            delete sprout.glassDome.MOVE_MATRIX._mode;
             LIBS.set_I4(sprout.glassDome.MOVE_MATRIX);
             LIBS.rotateY(sprout.glassDome.MOVE_MATRIX, domeAngle);
         }
 
         // Animasi menembak proyektil (Spacebar) — tangan kanan rotate ke atas lalu melontarkan proyektil pink
-        if (spShooting) {
+        if (!spDead && spShooting) {
             var spSt = t - spShootStart;
             var shootArmAng = 0;
 
@@ -484,6 +549,7 @@ function main() {
             }
 
             if (spShooting) {
+                delete sprout.leftArm.MOVE_MATRIX._mode;
                 LIBS.set_I4(sprout.leftArm.MOVE_MATRIX);
                 LIBS.rotateX(sprout.leftArm.MOVE_MATRIX, shootArmAng);
                 LIBS.rotateZ(sprout.leftArm.MOVE_MATRIX, 0.45);
@@ -504,9 +570,12 @@ function main() {
             }
         }
 
-        // Goyang daun di atas kepala
-        LIBS.set_I4(sprout.stem.MOVE_MATRIX);
-        LIBS.rotateZ(sprout.stem.MOVE_MATRIX, spWalking ? Math.sin(spWalkPhase * 2) * 0.12 : Math.sin(t * 3) * 0.05);
+        // Goyang daun di atas kepala (hanya saat hidup)
+        if (!spDead) {
+            delete sprout.stem.MOVE_MATRIX._mode;
+            LIBS.set_I4(sprout.stem.MOVE_MATRIX);
+            LIBS.rotateZ(sprout.stem.MOVE_MATRIX, spWalking ? Math.sin(spWalkPhase * 2) * 0.12 : Math.sin(t * 3) * 0.05);
+        }
 
         sprout.draw(time, PROJMATRIX, VIEWMATRIX, spProjectiles);
 
