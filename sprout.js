@@ -226,20 +226,24 @@ function initSprout(GL) {
     stickyNote.childs.push(mouth);
 
     // stem
-    var stem = makeMesh(LIBS.createCylinder(12, 4, 0.06, 0.06, 0.35, COLOR_GREEN_STEM));
+    var stem = makeMesh(LIBS.createCylinder(12, 4, 0.06, 0.06, 0.8, COLOR_GREEN_STEM));
     LIBS.set_position(stem.POSITION_MATRIX, 0.0, 1.58, 0.0);
     glassDome.childs.push(stem);
 
     var leafLeft = makeMesh(LIBS.createCurvedLeaf(8, 10, 0.42, 0.75, COLOR_GREEN_LEAF));
     LIBS.set_position(leafLeft.POSITION_MATRIX, 0.0, 0.12, 0.0);
     LIBS.rotateY(leafLeft.POSITION_MATRIX, -Math.PI / 2 - 0.3);
-    LIBS.rotateX(leafLeft.POSITION_MATRIX, 0.3);
+    LIBS.rotateX(leafLeft.POSITION_MATRIX, -1.8);
+    LIBS.translateY(leafLeft.POSITION_MATRIX, 0.1);
+    LIBS.translateZ(leafLeft.POSITION_MATRIX, 0.1);
     stem.childs.push(leafLeft);
 
     var leafRight = makeMesh(LIBS.createCurvedLeaf(8, 10, 0.42, 0.75, COLOR_GREEN_LEAF));
     LIBS.set_position(leafRight.POSITION_MATRIX, 0.0, 0.12, 0.0);
     LIBS.rotateY(leafRight.POSITION_MATRIX, Math.PI / 2 + 0.3);
-    LIBS.rotateX(leafRight.POSITION_MATRIX, 0.3);
+    LIBS.rotateX(leafRight.POSITION_MATRIX, -1.8);
+    LIBS.translateY(leafRight.POSITION_MATRIX, 0.1);
+    LIBS.translateZ(leafRight.POSITION_MATRIX, 0.1);
     stem.childs.push(leafRight);
 
     // Arms
