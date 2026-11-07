@@ -206,7 +206,6 @@ function initSprout(GL) {
     // stickyNote
     var stickyNote = makeMesh(LIBS.createBox(0.85, 0.85, 0.02, COLOR_YELLOW_NOTE));
     LIBS.set_position(stickyNote.POSITION_MATRIX, 0.0, 0.63, 0.865);
-    LIBS.rotateX(stickyNote.POSITION_MATRIX, 0.41);
     glassDome.childs.push(stickyNote);
 
     var tape = makeMesh(LIBS.createBox(0.25, 0.12, 0.03, COLOR_TAPE));
@@ -224,6 +223,8 @@ function initSprout(GL) {
     var mouth = makeMesh(LIBS.createBox(0.16, 0.035, 0.02, COLOR_BLACK_FACE));
     LIBS.set_position(mouth.POSITION_MATRIX, 0.0, -0.13, 0.03);
     stickyNote.childs.push(mouth);
+
+    LIBS.rotateX(stickyNote.POSITION_MATRIX, 0.41);
 
     // stem
     var stem = makeMesh(LIBS.createCylinder(12, 4, 0.06, 0.06, 0.8, COLOR_GREEN_STEM));
