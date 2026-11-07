@@ -42,6 +42,7 @@ function main() {
     var CAM_DIST  = 16.0;   // jarak ke target
     var CAM_PAN_X = 0.0;    // geser target X
     var CAM_PAN_Y = 1.2;    // geser target Y
+    var cameraLocked = false;
 
     var drag = false, rightDrag = false, xPrev = 0, yPrev = 0;
 
@@ -60,10 +61,12 @@ function main() {
         var dx = e.clientX - xPrev, dy = e.clientY - yPrev;
         xPrev = e.clientX; yPrev = e.clientY;
         if (drag) {
+            if (cameraLocked) return;
             CAM_THETA -= dx * 0.007;
             CAM_PHI    = Math.max(0.05, Math.min(1.4, CAM_PHI + dy * 0.006));
         }
         if (rightDrag) {
+            if (cameraLocked) return;
             var cosT = Math.cos(CAM_THETA), sinT = Math.sin(CAM_THETA);
             CAM_PAN_X += (-dx*cosT) * 0.012 * (CAM_DIST / 10);
             CAM_PAN_Y -= dy * 0.012 * (CAM_DIST / 10);
@@ -138,9 +141,7 @@ function main() {
 
     // Power Box
     var boxSpawned   = false;
-    var boxState     = 'none';
-    var boxPos       = [0, 0, 0];
-    var boxT         = 0;
+    var boxes        = [];
     var ultiUnlocked = false;
 
     // RNG — sama dengan spike.js (seed=7) supaya ROCKS/CACTI/dll konsisten
@@ -207,7 +208,7 @@ function main() {
         state = 'idle'; stateStart = t;
         posX = 3.5; posZ = 0; facing = 0; castFacing = 0;
         enemyState = 'none'; skillHasTarget = false;
-        boxSpawned = false; boxState = 'none';
+        boxSpawned = false; boxes = [];
         ultiUnlocked = false; ultiClicks = 0;
         for (var k in keys) keys[k] = false;
     };
@@ -259,6 +260,10 @@ function main() {
     var keys = {};
     window.addEventListener('keydown', function (e) {
         keys[e.code] = true;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+            cameraLocked = true;
+            e.preventDefault();
+        }
         if (e.code === 'Space') {
             if (!spShooting) {
                 spShooting    = true;
@@ -292,7 +297,10 @@ function main() {
             e.preventDefault();
         }
     }, false);
-    window.addEventListener('keyup', function (e) { keys[e.code] = false; }, false);
+    window.addEventListener('keyup', function (e) {
+        keys[e.code] = false;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') cameraLocked = false;
+    }, false);
 
     // ---- Fungsi gambar Power Box ----
     var gambarPeti = function (M, alpha) {
@@ -342,11 +350,19 @@ function main() {
         GL.clear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
         // ---- Kamera ----
-        var eyeX = CAM_PAN_X + CAM_DIST * Math.cos(CAM_PHI) * Math.sin(CAM_THETA);
-        var eyeY = CAM_PAN_Y + CAM_DIST * Math.sin(CAM_PHI);
-        var eyeZ =             CAM_DIST * Math.cos(CAM_PHI) * Math.cos(CAM_THETA);
-        var eye  = [eyeX, eyeY, eyeZ];
-        var VIEWMATRIX = LIBS.look_at(eye, [CAM_PAN_X, CAM_PAN_Y - 0.3, 0.0], [0, 1, 0]);
+        var camTarget, eye;
+        if (cameraLocked && stage === 'spike') {
+            var backX = -Math.sin(facing), backZ = -Math.cos(facing);
+            camTarget = [posX, 1.5, posZ];
+            eye = [posX + backX * 5, 3.0, posZ + backZ * 5];
+        } else {
+            var eyeX = CAM_PAN_X + CAM_DIST * Math.cos(CAM_PHI) * Math.sin(CAM_THETA);
+            var eyeY = CAM_PAN_Y + CAM_DIST * Math.sin(CAM_PHI);
+            var eyeZ =             CAM_DIST * Math.cos(CAM_PHI) * Math.cos(CAM_THETA);
+            eye = [eyeX, eyeY, eyeZ];
+            camTarget = [CAM_PAN_X, CAM_PAN_Y - 0.3, 0.0];
+        }
+        var VIEWMATRIX = LIBS.look_at(eye, camTarget, [0, 1, 0]);
         VPMATRIX = LIBS.multiply(PROJMATRIX, VIEWMATRIX);
 
         // ================================================================
@@ -727,44 +743,56 @@ function main() {
 
         // ---- Power Box ----
         if (!boxSpawned && enemyState === 'dead') {
-            boxSpawned = true; boxState = 'falling'; boxT = t;
-            boxPos = [enemyX+(rnd2()-.5)*1.5, 8, enemyZ+(rnd2()-.5)*1.5];
-        }
-        if (boxState === 'falling') {
-            var ft = LIBS.clamp((t - boxT) / 1.1, 0, 1);
-            boxPos[1] = 8*(1-ft)*(1-ft)+0.35;
-            if (ft >= 1) boxState = 'ground';
-        }
-        if (boxState === 'ground') {
-            var jarak = Math.hypot(posX-boxPos[0], posZ-boxPos[2]);
-            if (jarak < 1.3) { boxState = 'opening'; boxT = t; }
-        }
-        if (boxState !== 'none' && boxState !== 'done') {
-            var bm = LIBS.get_I4();
-            LIBS.translate(bm, boxPos[0], boxPos[1], boxPos[2]);
-            LIBS.rotateY(bm, 0.3 * Math.sin(t * 0.8));
-            if (boxState === 'falling' || boxState === 'ground') {
-                gambarPeti(bm, 1);
-            } else if (boxState === 'opening') {
-                var op = LIBS.clamp((t - boxT) / 0.6, 0, 1);
-                var wob = Math.sin(op*TAU*3)*0.14*(1-op);
-                var pm = LIBS.copy(bm);
-                LIBS.translate(pm, 0, 0.08*Math.sin(op*Math.PI), 0);
-                LIBS.rotateZ(pm, wob);
-                gambarPeti(pm, 1);
-                for (var i = 0; i < 6; i++) {
-                    var ka = (i/6)*TAU+op*2, kr = op*0.9, ks = 0.05+0.04*op;
-                    gambar(SPHERE, matrix_TS(bm, Math.cos(ka)*kr,0.3+op*0.7,Math.sin(ka)*kr, ks,ks,ks), [1,0.9,0.3], {spec:.6});
-                }
-                if (op >= 1) { boxState = 'fading'; boxT = t; }
-            } else if (boxState === 'fading') {
-                var fp = LIBS.clamp((t - boxT) / 0.9, 0, 1);
-                gambarPeti(matrix_TS(bm, 0,fp*0.7,0, 1,1,1), 1-fp);
-                if (fp >= 1) {
-                    boxState = 'done'; ultiUnlocked = true;
-                }
+            boxSpawned = true;
+            for (var bi = 0; bi < 3; bi++) {
+                var angle = bi * TAU / 3;
+                var bx = enemyX + Math.cos(angle) * 1.15;
+                var bz = enemyZ + Math.sin(angle) * 1.15;
+                boxes.push({ state:'falling', pos:[bx,8,bz], start:t, openedAt:0 });
             }
         }
+        var anyBoxAvailable = false;
+        var allBoxesDone = boxes.length === 3;
+        for (var bi = 0; bi < boxes.length; bi++) {
+            var box = boxes[bi];
+            if (box.state === 'falling') {
+                var ft = LIBS.clamp((t - box.start) / 1.1, 0, 1);
+                box.pos[1] = 8*(1-ft)*(1-ft)+0.35;
+                if (ft >= 1) box.state = 'ground';
+            }
+            if (box.state === 'ground') {
+                anyBoxAvailable = true;
+                if (Math.hypot(posX-box.pos[0], posZ-box.pos[2]) < 1.3) {
+                    box.state = 'opening'; box.openedAt = t;
+                }
+            }
+            if (box.state === 'falling' || box.state === 'ground' || box.state === 'opening' || box.state === 'fading') {
+                var bm = LIBS.get_I4();
+                LIBS.translate(bm, box.pos[0], box.pos[1], box.pos[2]);
+                LIBS.rotateY(bm, 0.3 * Math.sin(t * 0.8 + bi));
+                if (box.state === 'falling' || box.state === 'ground') {
+                    gambarPeti(bm, 1);
+                } else if (box.state === 'opening') {
+                    var op = LIBS.clamp((t - box.openedAt) / 0.6, 0, 1);
+                    var wob = Math.sin(op*TAU*3)*0.14*(1-op);
+                    var pm = LIBS.copy(bm);
+                    LIBS.translate(pm, 0, 0.08*Math.sin(op*Math.PI), 0);
+                    LIBS.rotateZ(pm, wob);
+                    gambarPeti(pm, 1);
+                    for (var i = 0; i < 6; i++) {
+                        var ka = (i/6)*TAU+op*2, kr = op*0.9, ks = 0.05+0.04*op;
+                        gambar(SPHERE, matrix_TS(bm, Math.cos(ka)*kr,0.3+op*0.7,Math.sin(ka)*kr, ks,ks,ks), [1,0.9,0.3], {spec:.6});
+                    }
+                    if (op >= 1) { box.state = 'fading'; box.openedAt = t; }
+                } else {
+                    var fp = LIBS.clamp((t - box.openedAt) / 0.9, 0, 1);
+                    gambarPeti(matrix_TS(bm, 0,fp*0.7,0, 1,1,1), 1-fp);
+                    if (fp >= 1) box.state = 'done';
+                }
+            }
+            if (box.state !== 'done') allBoxesDone = false;
+        }
+        if (allBoxesDone) ultiUnlocked = true;
 
         // ---- Karakter Spike ----
         gambar(SPHERE, matrix_TS(IDENTITY, posX,0.02,posZ, 1.05*shadowScale*bodyGrow,0.01,1.05*shadowScale*bodyGrow), [0,0,0], {mode:3});
@@ -925,7 +953,7 @@ function main() {
             else if (enemyState === 'growing' || enemyState === 'alive')
                 setObj('Hancurkan kaktus kecil dengan Skill (tekan E)');
             else if (enemyState === 'dying')  setObj('');
-            else if (boxState !== 'done' && boxState !== 'opening' && boxState !== 'fading')
+            else if (!ultiUnlocked && boxes.length > 0)
                 setObj('Ambil Power Box! (WASD)');
             else if (ultiUnlocked && ultiClicks === 0) setObj('Ulti terbuka! Tekan R (2x untuk Flash)');
             else if (ultiClicks === 1) setObj('Tekan R sekali lagi!');
