@@ -152,8 +152,8 @@ function main() {
     var ultiUnlocked = false;
     // Peti dekorasi yang selalu ada di environment; tidak bisa dibuka.
     var envBoxes = [
-        { x: -7.5, z: 4.8, rot: -0.55, scale: 0.82 },
-        { x:  7.2, z: 5.6, rot:  0.72, scale: 0.9 }
+        { x: -7.5, z: 4.8, rot: -0.55, scale: 0.82, state: 'ground', fadeAt: 0 },
+        { x:  7.2, z: 5.6, rot:  0.72, scale: 0.9, state: 'ground', fadeAt: 0 }
     ];
 
     // RNG — sama dengan spike.js (seed=7) supaya ROCKS/CACTI/dll konsisten
@@ -203,8 +203,9 @@ function main() {
 
     var spawnEnemy = function () {
         var a = rnd2() * TAU;
-        enemyX = posX + Math.sin(a) * 4.5;
-        enemyZ = posZ + Math.cos(a) * 4.5;
+        // Jarak lebih jauh supaya perjalanan Spike menuju musuh terlihat jelas.
+        enemyX = posX + Math.sin(a) * 13.0;
+        enemyZ = posZ + Math.cos(a) * 13.0;
         enemyState = 'growing';
         enemyTime  = t;
     };
@@ -770,11 +771,26 @@ function main() {
 
         // ---- Peti dekorasi environment (statis, bukan hadiah skill) ----
         for (var i = 0; i < envBoxes.length; i++) {
-            var envBox = envBoxes[i], ebm = LIBS.get_I4();
-            LIBS.translate(ebm, envBox.x, 0.35, envBox.z);
-            LIBS.rotateY(ebm, envBox.rot);
-            LIBS.scale(ebm, envBox.scale, envBox.scale, envBox.scale);
-            gambarPeti(ebm, 1);
+            var envBox = envBoxes[i];
+            var dekatSpike = Math.hypot(posX-envBox.x, posZ-envBox.z) < 1.25;
+            var dekatSprout = !spDead && Math.hypot(spPosX-envBox.x, spPosZ-envBox.z) < 1.25;
+            if (envBox.state === 'ground' && (dekatSpike || dekatSprout)) {
+                envBox.state = 'fading';
+                envBox.fadeAt = t;
+            }
+            if (envBox.state !== 'gone') {
+                var ebm = LIBS.get_I4();
+                var envAlpha = 1;
+                if (envBox.state === 'fading') {
+                    var envFade = LIBS.clamp((t-envBox.fadeAt)/0.45, 0, 1);
+                    envAlpha = 1-envFade;
+                    if (envFade >= 1) envBox.state = 'gone';
+                }
+                LIBS.translate(ebm, envBox.x, 0.35, envBox.z);
+                LIBS.rotateY(ebm, envBox.rot);
+                LIBS.scale(ebm, envBox.scale, envBox.scale, envBox.scale);
+                gambarPeti(ebm, envAlpha);
+            }
         }
 
         // ---- Musuh kaktus kecil ----
