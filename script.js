@@ -104,13 +104,27 @@ function main() {
     var stageStart = 0;
     var GROW_DUR   = 2.6;
 
-    // State karakter
+    // State karakter Spike
     var state      = 'idle';
     var stateStart = 0;
     var walkPhase  = 0;
     var posX = 3.5, posZ = 0, facing = 0;   // Spike di kanan (X = 3.5)
     var castX = 0, castZ = 0, castFacing = 0;
     var DUR   = { idle:1e9, walk:1e9, wave:1.8, skill:1.9, ulti:2.4 };
+
+    // State karakter Sprout
+    var spPosX          = -3.5;
+    var spPosZ          = 0.0;
+    var spFacing        = 0.0;
+    var spWalkPhase     = 0.0;
+    var spWheelRot      = 0.0;
+    var spTiltX         = 0.0;
+    var spScale         = 1.0;
+    var spTargetScale   = 1.0;
+    var spShooting      = false;
+    var spShootStart    = 0.0;
+    var spSpawnedProj   = false;
+    var spProjectiles   = [];
 
     // Musuh kaktus kecil
     var enemyState     = 'none';
@@ -166,23 +180,12 @@ function main() {
     var VPMATRIX   = LIBS.get_I4();
 
     // ---- UI ----
-    var growBtn  = document.getElementById('growBtn');
-    var growPanel= document.getElementById('growUi');
-    var uiPanel  = document.getElementById('ui');
-    var ultiBtn  = document.getElementById('ultiBtn');
     var flashEl  = document.getElementById('flash');
     var objEl    = document.getElementById('obj');
     var objTxt   = '';
 
     var setObj = function (s) {
         if (s !== objTxt) { objTxt = s; if (objEl) objEl.textContent = s; }
-    };
-
-    var setIdleBtn = function () {
-        var tombol = document.querySelectorAll('#ui button');
-        for (var i = 0; i < tombol.length; i++) tombol[i].classList.remove('active');
-        var b = document.querySelector('#ui button[data-s="idle"]');
-        if (b) b.classList.add('active');
     };
 
     var spawnEnemy = function () {
@@ -196,7 +199,6 @@ function main() {
     var startFlash = function () {
         if (flash) return;
         flash = { t0: t, reset: false, cx: 0, cy: 0 };
-        if (uiPanel)  uiPanel.style.display = 'none';
         if (flashEl) { flashEl.style.display = 'block'; flashEl.style.pointerEvents = 'auto'; flashEl.style.opacity = 1; }
     };
 
@@ -207,11 +209,7 @@ function main() {
         enemyState = 'none'; skillHasTarget = false;
         boxSpawned = false; boxState = 'none';
         ultiUnlocked = false; ultiClicks = 0;
-        if (ultiBtn) { ultiBtn.disabled = true; ultiBtn.textContent = 'Ulti (Super) 🔒'; }
-        setIdleBtn();
         for (var k in keys) keys[k] = false;
-        if (uiPanel)  uiPanel.style.display  = 'none';
-        if (growPanel) growPanel.style.display = 'flex';
     };
 
     // Proyeksi 3D ke piksel layar (untuk efek flash)
@@ -228,45 +226,71 @@ function main() {
         return [cx+l[0]*c+l[2]*s, l[1], cz-l[0]*s+l[2]*c];
     };
 
-    // ---- Event: tombol tumbuh ----
-    if (growBtn) {
-        growBtn.onclick = function () {
-            if (stage !== 'seed') return;
-            stage = 'growing'; stageStart = t;
-            if (growPanel) growPanel.style.display = 'none';
-        };
-    }
+    // Helper trigger aksi Spike (wave, skill, ulti)
+    var triggerSpikeAction = function (kind) {
+        if (stage !== 'spike' || flash) return;
 
-    // ---- Event: panel aksi ----
-    if (uiPanel) {
-        uiPanel.addEventListener('click', function (e) {
-            var b = e.target.closest('button');
-            if (!b || stage !== 'spike' || b.disabled || flash) return;
-            var kind = b.dataset.s;
-            if (kind === 'ulti') {
-                ultiClicks++;
-                if (ultiClicks >= 2) { startFlash(); return; }
-                b.textContent = 'Ulti ⚡ klik 1x lagi!';
+        if (kind === 'ulti') {
+            if (!ultiUnlocked) return;
+            ultiClicks++;
+            if (ultiClicks >= 2) {
+                startFlash();
+                return;
             }
-            state = kind; stateStart = t;
-            castX = posX; castZ = posZ; castFacing = facing;
-            skillHasTarget = false; skillDist = 2.7;
-            if (kind === 'skill' && (enemyState === 'growing' || enemyState === 'alive')) {
-                var dx = enemyX-posX, dz = enemyZ-posZ;
-                aimFacing = Math.atan2(dx, dz);
-                skillDist = Math.max(1, Math.hypot(dx, dz) - 0.3);
-                skillHasTarget = true;
-            }
-            var tombol = document.querySelectorAll('#ui button');
-            for (var i = 0; i < tombol.length; i++) tombol[i].classList.toggle('active', tombol[i] === b);
-        });
-    }
+        }
+
+        state = kind;
+        stateStart = t;
+        castX = posX;
+        castZ = posZ;
+        castFacing = facing;
+        skillHasTarget = false;
+        skillDist = 2.7;
+
+        if (kind === 'skill' && (enemyState === 'growing' || enemyState === 'alive')) {
+            var dx = enemyX - posX, dz = enemyZ - posZ;
+            aimFacing = Math.atan2(dx, dz);
+            skillDist = Math.max(1, Math.hypot(dx, dz) - 0.3);
+            skillHasTarget = true;
+        }
+    };
 
     // ---- Input keyboard ----
     var keys = {};
     window.addEventListener('keydown', function (e) {
         keys[e.code] = true;
-        if (e.code === 'Space') { paused = !paused; e.preventDefault(); }
+        if (e.code === 'Space') {
+            if (!spShooting) {
+                spShooting    = true;
+                spShootStart  = t;
+                spSpawnedProj = false;
+            }
+            e.preventDefault();
+        }
+        if (e.code === 'KeyC' && !e.repeat) {
+            spTargetScale = spTargetScale + 0.2;
+        }
+        // Trigger animasi Spike via Keyboard:
+        // Q : Siram air & tumbuh (saat masih seed) / Wave (setelah tumbuh menjadi spike)
+        // E : Skill
+        // R : Ulti
+        if (e.code === 'KeyQ' && !e.repeat) {
+            if (stage === 'seed') {
+                stage = 'growing';
+                stageStart = t;
+            } else if (stage === 'spike') {
+                triggerSpikeAction('wave');
+            }
+        }
+        if (e.code === 'KeyE' && !e.repeat) {
+            triggerSpikeAction('skill');
+        }
+        if (e.code === 'KeyR' && !e.repeat) {
+            triggerSpikeAction('ulti');
+        }
+        if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+            e.preventDefault();
+        }
     }, false);
     window.addEventListener('keyup', function (e) { keys[e.code] = false; }, false);
 
@@ -326,9 +350,165 @@ function main() {
         VPMATRIX = LIBS.multiply(PROJMATRIX, VIEWMATRIX);
 
         // ================================================================
-        //  RENDER SPROUT (pakai shader sendiri)
+        //  UPDATE & RENDER SPROUT (Arrow Keys — sama persis dengan WASD Spike)
         // ================================================================
-        sprout.draw(time, PROJMATRIX, VIEWMATRIX);
+        var spMx = 0, spMz = 0;
+        if (keys.ArrowUp)    spMz -= 1;
+        if (keys.ArrowDown)  spMz += 1;
+        if (keys.ArrowLeft)  spMx -= 1;
+        if (keys.ArrowRight) spMx += 1;
+
+        var spWalking = (spMx !== 0 || spMz !== 0);
+        if (spWalking) {
+            var spLen = Math.hypot(spMx, spMz);
+            spMx /= spLen;
+            spMz /= spLen;
+
+            spPosX += spMx * 2.6 * dt;
+            spPosZ += spMz * 2.6 * dt;
+
+            // Putar arah hadap Sprout menghadap arah gerak (sama seperti Spike)
+            var spTarget = Math.atan2(-spMx, spMz);
+            var spDiff = spTarget - spFacing;
+            while (spDiff >  Math.PI) spDiff -= TAU;
+            while (spDiff < -Math.PI) spDiff += TAU;
+            spFacing += spDiff * Math.min(dt * 8, 1);
+
+            spWalkPhase += dt * 7.5;
+            spWheelRot  += (2.6 * dt) / 0.32;
+        }
+
+        // Bobbing badan saat jalan vs idle (sama seperti Spike)
+        var spBobY = spWalking
+            ? 0.04 + 0.05 * Math.abs(Math.sin(spWalkPhase * 2))
+            : 0.05 * Math.sin(t * 2);
+
+        // Interpolasi halus animasi scaling saat tombol C ditekan
+        spScale += (spTargetScale - spScale) * Math.min(dt * 7, 1);
+
+        // Gunakan JOINT_MATRIX untuk translasi dunia & translateY sesuai spScale (1.17 * spScale)
+        // agar titik terbawah roda (y lokal = -1.17) selalu menempel tepat di tanah (y = 0)
+        LIBS.set_I4(sprout.bodyBase.JOINT_MATRIX);
+        LIBS.translateX(sprout.bodyBase.JOINT_MATRIX, spPosX);
+        LIBS.translateY(sprout.bodyBase.JOINT_MATRIX, 1.17 * spScale + spBobY);
+        LIBS.translateZ(sprout.bodyBase.JOINT_MATRIX, spPosZ);
+
+        LIBS.set_I4(sprout.bodyBase.POSITION_MATRIX);
+        LIBS.set_I4(sprout.bodyBase.MOVE_MATRIX);
+        LIBS.rotateY(sprout.bodyBase.MOVE_MATRIX, spFacing);
+        LIBS.scaleX(sprout.bodyBase.MOVE_MATRIX, spScale);
+        LIBS.scaleY(sprout.bodyBase.MOVE_MATRIX, spScale);
+        LIBS.scaleZ(sprout.bodyBase.MOVE_MATRIX, spScale);
+
+        // Putaran roda Sprout di tempat pada porosnya
+        LIBS.set_I4(sprout.leftWheel.MOVE_MATRIX);
+        LIBS.rotateY(sprout.leftWheel.MOVE_MATRIX, spWheelRot);
+        LIBS.set_I4(sprout.rightWheel.MOVE_MATRIX);
+        LIBS.rotateY(sprout.rightWheel.MOVE_MATRIX, spWheelRot);
+
+        // Ayunan tangan Sprout (persis seperti ayunan lengan WASD Spike: mengayun maju-mundur bergantian)
+        if (spWalking) {
+            var spArmL = Math.sin(spWalkPhase + Math.PI) * 0.4;
+            var spArmR = Math.sin(spWalkPhase) * 0.4;
+
+            LIBS.set_I4(sprout.leftArm.MOVE_MATRIX);
+            LIBS.rotateX(sprout.leftArm.MOVE_MATRIX, -spArmL);
+            LIBS.rotateZ(sprout.leftArm.MOVE_MATRIX, -0.45);
+
+            LIBS.set_I4(sprout.rightArm.MOVE_MATRIX);
+            LIBS.rotateX(sprout.rightArm.MOVE_MATRIX, -spArmR);
+            LIBS.rotateZ(sprout.rightArm.MOVE_MATRIX, 0.45);
+
+            // Kepala menghadap lurus ke depan saat jalan
+            LIBS.set_I4(sprout.glassDome.MOVE_MATRIX);
+        } else {
+            var armWave = Math.sin(t * 2.5) * 0.18;
+            LIBS.set_I4(sprout.leftArm.MOVE_MATRIX);
+            LIBS.rotateZ(sprout.leftArm.MOVE_MATRIX, -0.45 + armWave);
+            LIBS.set_I4(sprout.rightArm.MOVE_MATRIX);
+            LIBS.rotateZ(sprout.rightArm.MOVE_MATRIX, 0.45 - armWave);
+
+            // Animasi menoleh kubah kaca saat diam (idle)
+            var domePositions = [-0.9, 0, 0.9, 0];
+            var domeMoveDuration = 50;
+            var domePauseDuration = 1500;
+            var domeSegmentDuration = domeMoveDuration + domePauseDuration;
+            var domeCycleDuration = domeSegmentDuration * domePositions.length;
+            var domePhase = (t * 1000) % domeCycleDuration;
+            var domeSegment = Math.floor(domePhase / domeSegmentDuration);
+            var domeSegmentTime = domePhase % domeSegmentDuration;
+            var domePreviousPosition = domePositions[(domeSegment + domePositions.length - 1) % domePositions.length];
+            var domeTargetPosition = domePositions[domeSegment];
+            var domeProgress = Math.min(domeSegmentTime / domeMoveDuration, 1);
+            var domeAngle = domePreviousPosition + (domeTargetPosition - domePreviousPosition) * domeProgress;
+
+            LIBS.set_I4(sprout.glassDome.MOVE_MATRIX);
+            LIBS.rotateY(sprout.glassDome.MOVE_MATRIX, domeAngle);
+        }
+
+        // Animasi menembak proyektil (Spacebar) — tangan kanan rotate ke atas lalu melontarkan proyektil pink
+        if (spShooting) {
+            var spSt = t - spShootStart;
+            var shootArmAng = 0;
+
+            if (spSt < 0.28) {
+                // Tangan kanan diangkat (rotate) ke atas
+                var pUp = LIBS.smoothstep(0, 0.28, spSt);
+                shootArmAng = pUp * 2.1;
+            } else if (spSt < 0.75) {
+                // Spawn proyektil tepat dari ujung tangan kanan saat di puncak atas
+                if (!spSpawnedProj) {
+                    var handPos = sprout.getLeftHandWorldPosition();
+                    spSpawnedProj = true;
+                    var cF = Math.cos(spFacing);
+                    var sF = Math.sin(spFacing);
+
+                    // Arah depan Sprout sesuai rotasi hadapnya: (-sin(spFacing), cos(spFacing))
+                    var fwdX = -sF;
+                    var fwdZ =  cF;
+
+                    spProjectiles.push({
+                        x: handPos.x,
+                        y: handPos.y,
+                        z: handPos.z,
+                        vx : fwdX * 6.5,
+                        vy : 6.2,
+                        vz : fwdZ * 6.5
+                    });
+                }
+                // Tangan kanan turun kembali ke posisi semula
+                var pDown = LIBS.smoothstep(0.28, 0.75, spSt);
+                shootArmAng = (1 - pDown) * 2.1;
+            } else {
+                spShooting = false;
+            }
+
+            if (spShooting) {
+                LIBS.set_I4(sprout.leftArm.MOVE_MATRIX);
+                LIBS.rotateX(sprout.leftArm.MOVE_MATRIX, shootArmAng);
+                LIBS.rotateZ(sprout.leftArm.MOVE_MATRIX, 0.45);
+            }
+        }
+
+        // Update fisika melambung proyektil & hapus saat menyentuh tanah
+        for (var pi = spProjectiles.length - 1; pi >= 0; pi--) {
+            var prj = spProjectiles[pi];
+            prj.x  += prj.vx * dt;
+            prj.z  += prj.vz * dt;
+            prj.y  += prj.vy * dt;
+            prj.vy -= 14.0 * dt; // gravitasi agar lintasan melambung parabolik
+
+            // Hapus proyektil saat menyentuh permukaan tanah (radius sphere = 0.30)
+            if (prj.y <= 0.30) {
+                spProjectiles.splice(pi, 1);
+            }
+        }
+
+        // Goyang daun di atas kepala
+        LIBS.set_I4(sprout.stem.MOVE_MATRIX);
+        LIBS.rotateZ(sprout.stem.MOVE_MATRIX, spWalking ? Math.sin(spWalkPhase * 2) * 0.12 : Math.sin(t * 3) * 0.05);
+
+        sprout.draw(time, PROJMATRIX, VIEWMATRIX, spProjectiles);
 
         // ================================================================
         //  RENDER SPIKE — set kamera ke shader Spike
@@ -339,13 +519,12 @@ function main() {
         // ---- State game: tahap tumbuh ----
         if (stage === 'growing' && t - stageStart > GROW_DUR) {
             stage = 'spike';
-            if (uiPanel) uiPanel.style.display = 'flex';
             if (enemyState === 'none') spawnEnemy();
         }
 
         var st = t - stateStart;
         if (state !== 'idle' && state !== 'walk' && st > DUR[state]) {
-            state = 'idle'; stateStart = t; st = 0; setIdleBtn();
+            state = 'idle'; stateStart = t; st = 0;
         }
 
         // Skill: putar badan ke arah kaktus kecil
@@ -357,13 +536,13 @@ function main() {
             castFacing = facing;
         }
 
-        // Gerak WASD
+        // Gerak WASD (khusus Spike)
         if (stage === 'spike' && (state === 'idle' || state === 'walk')) {
             var mx = 0, mz = 0;
-            if (keys.KeyW || keys.ArrowUp)    mz -= 1;
-            if (keys.KeyS || keys.ArrowDown)  mz += 1;
-            if (keys.KeyA || keys.ArrowLeft)  mx -= 1;
-            if (keys.KeyD || keys.ArrowRight) mx += 1;
+            if (keys.KeyW) mz -= 1;
+            if (keys.KeyS) mz += 1;
+            if (keys.KeyA) mx -= 1;
+            if (keys.KeyD) mx += 1;
             if (mx || mz) {
                 var panjang = Math.hypot(mx, mz);
                 mx /= panjang; mz /= panjang;
@@ -583,7 +762,6 @@ function main() {
                 gambarPeti(matrix_TS(bm, 0,fp*0.7,0, 1,1,1), 1-fp);
                 if (fp >= 1) {
                     boxState = 'done'; ultiUnlocked = true;
-                    if (ultiBtn) { ultiBtn.disabled = false; ultiBtn.textContent = 'Ulti (Super)'; }
                 }
             }
         }
@@ -742,15 +920,15 @@ function main() {
 
         // ---- Teks tujuan ----
         if (!flash) {
-            if (stage === 'seed')           setObj('Siram air untuk menumbuhkan kaktus menjadi Spike');
+            if (stage === 'seed')           setObj('Tekan Q untuk menyiram air & menumbuhkan kaktus menjadi Spike');
             else if (stage === 'growing')   setObj('Tumbuh...');
             else if (enemyState === 'growing' || enemyState === 'alive')
-                setObj('Hancurkan kaktus kecil dengan Skill (otomatis mengarah ke target)');
+                setObj('Hancurkan kaktus kecil dengan Skill (tekan E)');
             else if (enemyState === 'dying')  setObj('');
             else if (boxState !== 'done' && boxState !== 'opening' && boxState !== 'fading')
                 setObj('Ambil Power Box! (WASD)');
-            else if (ultiUnlocked && ultiClicks === 0) setObj('Ulti terbuka! Klik Ulti 2x');
-            else if (ultiClicks === 1) setObj('Klik Ulti sekali lagi!');
+            else if (ultiUnlocked && ultiClicks === 0) setObj('Ulti terbuka! Tekan R (2x untuk Flash)');
+            else if (ultiClicks === 1) setObj('Tekan R sekali lagi!');
             else setObj('');
         } else { setObj(''); }
 

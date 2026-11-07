@@ -49,8 +49,8 @@ class SproutObject {
 
         var stride = 10 * 4;
         this.GL.vertexAttribPointer(this._position, 3, this.GL.FLOAT, false, stride, 0);
-        this.GL.vertexAttribPointer(this._color,    4, this.GL.FLOAT, false, stride, 3 * 4);
-        this.GL.vertexAttribPointer(this._normal,   3, this.GL.FLOAT, false, stride, 7 * 4);
+        this.GL.vertexAttribPointer(this._color, 4, this.GL.FLOAT, false, stride, 3 * 4);
+        this.GL.vertexAttribPointer(this._normal, 3, this.GL.FLOAT, false, stride, 7 * 4);
 
         this.GL.bindBuffer(this.GL.ELEMENT_ARRAY_BUFFER, this.ibo);
         this.GL.drawElements(this.GL.TRIANGLES, this.faces.length, this.GL.UNSIGNED_SHORT, 0);
@@ -144,12 +144,12 @@ function initSprout(GL) {
     }
 
     var _position = GL.getAttribLocation(SHADER_PROGRAM, 'position');
-    var _color    = GL.getAttribLocation(SHADER_PROGRAM, 'color');
-    var _normal   = GL.getAttribLocation(SHADER_PROGRAM, 'normal');
+    var _color = GL.getAttribLocation(SHADER_PROGRAM, 'color');
+    var _normal = GL.getAttribLocation(SHADER_PROGRAM, 'normal');
 
-    var _Pmatrix  = GL.getUniformLocation(SHADER_PROGRAM, 'SP_Pmatrix');
-    var _Vmatrix  = GL.getUniformLocation(SHADER_PROGRAM, 'SP_Vmatrix');
-    var _Mmatrix  = GL.getUniformLocation(SHADER_PROGRAM, 'SP_Mmatrix');
+    var _Pmatrix = GL.getUniformLocation(SHADER_PROGRAM, 'SP_Pmatrix');
+    var _Vmatrix = GL.getUniformLocation(SHADER_PROGRAM, 'SP_Vmatrix');
+    var _Mmatrix = GL.getUniformLocation(SHADER_PROGRAM, 'SP_Mmatrix');
 
     GL.useProgram(SHADER_PROGRAM);
     GL.enableVertexAttribArray(_position);
@@ -157,18 +157,18 @@ function initSprout(GL) {
     GL.enableVertexAttribArray(_normal);
 
     // ================= PALET WARNA =================
-    var COLOR_WHITE        = [0.92, 0.94, 0.96, 1.0];
-    var COLOR_CYAN_GLASS   = [0.60, 0.90, 1.0,  0.45];
-    var COLOR_CYAN_TRIM    = [0.72, 0.92, 0.98, 0.85];
-    var COLOR_YELLOW_NOTE  = [0.98, 0.85, 0.12, 1.0];
-    var COLOR_GREEN_LEAF   = [0.22, 0.82, 0.22, 1.0];
-    var COLOR_GREEN_STEM   = [0.15, 0.65, 0.15, 1.0];
-    var COLOR_BLUE_PIPE    = [0.45, 0.65, 0.95, 1.0];
-    var COLOR_PINK_CAPIT   = [0.95, 0.32, 0.55, 1.0];
+    var COLOR_WHITE = [0.92, 0.94, 0.96, 1.0];
+    var COLOR_CYAN_GLASS = [0.60, 0.90, 1.0, 0.45];
+    var COLOR_CYAN_TRIM = [0.72, 0.92, 0.98, 0.85];
+    var COLOR_YELLOW_NOTE = [0.98, 0.85, 0.12, 1.0];
+    var COLOR_GREEN_LEAF = [0.22, 0.82, 0.22, 1.0];
+    var COLOR_GREEN_STEM = [0.15, 0.65, 0.15, 1.0];
+    var COLOR_BLUE_PIPE = [0.45, 0.65, 0.95, 1.0];
+    var COLOR_PINK_CAPIT = [0.95, 0.32, 0.55, 1.0];
     var COLOR_PURPLE_WHEEL = [0.18, 0.16, 0.35, 1.0];
-    var COLOR_RED_BUTTON   = [0.92, 0.15, 0.18, 1.0];
-    var COLOR_BLACK_FACE   = [0.12, 0.12, 0.12, 1.0];
-    var COLOR_TAPE         = [0.88, 0.88, 0.82, 0.9];
+    var COLOR_RED_BUTTON = [0.92, 0.15, 0.18, 1.0];
+    var COLOR_BLACK_FACE = [0.12, 0.12, 0.12, 1.0];
+    var COLOR_TAPE = [0.88, 0.88, 0.82, 0.9];
 
     function makeMesh(geom) {
         return new SproutObject(
@@ -271,7 +271,7 @@ function initSprout(GL) {
         return shoulder;
     }
 
-    var leftArm  = createArm(true);
+    var leftArm = createArm(true);
     var rightArm = createArm(false);
     bodyBase.childs.push(leftArm);
     bodyBase.childs.push(rightArm);
@@ -279,8 +279,10 @@ function initSprout(GL) {
     // Wheels
     function createWheel(xPos) {
         var wheel = makeMesh(LIBS.createCylinder(20, 6, 0.32, 0.32, 0.65, COLOR_PURPLE_WHEEL));
+        // Posisi poros roda ditaruh di JOINT_MATRIX agar roda berputar di tempat (tidak mengorbit titik 0,0,0)
+        LIBS.set_position(wheel.JOINT_MATRIX, xPos, -0.85, 0.0);
+        // Orientasi silinder roda di POSITION_MATRIX
         LIBS.rotateX(wheel.POSITION_MATRIX, Math.PI / 2);
-        LIBS.set_position(wheel.POSITION_MATRIX, xPos, -0.85, 0.0);
 
         var rim = makeMesh(LIBS.createCylinder(16, 4, 0.20, 0.20, 0.67, COLOR_BLUE_PIPE));
         wheel.childs.push(rim);
@@ -288,18 +290,57 @@ function initSprout(GL) {
         return wheel;
     }
 
-    bodyBase.childs.push(createWheel(-0.62));
-    bodyBase.childs.push(createWheel( 0.62));
+    var leftWheel = createWheel(-0.62);
+    var rightWheel = createWheel(0.62);
+    bodyBase.childs.push(leftWheel);
+    bodyBase.childs.push(rightWheel);
 
-    // Posisi Sprout di dunia Spike:
-    // X = -3.5 (di kiri Spike), Y = 0.85 agar roda menyentuh tanah (roda center di y=-0.85 relatif bodyBase)
-    LIBS.set_position(bodyBase.POSITION_MATRIX, -3.5, 0.85, 0.0);
+    // Posisi dunia Sprout ditaruh di JOINT_MATRIX agar rotasi hadap (MOVE_MATRIX) berputar di tempat seperti Spike
+    LIBS.set_position(bodyBase.JOINT_MATRIX, -3.5, 1.17, 0.0);
+
+    // Proyektil Sprout (sphere biasa berwarna pink)
+    var projectileMesh = makeMesh(LIBS.createSphere(16, 16, 0.30, COLOR_PINK_CAPIT));
+
+    function getLeftHandWorldPosition() {
+        // Matriks dunia bodyBase
+        var bodyMatrix = LIBS.get_I4();
+        bodyMatrix = LIBS.multiply(bodyMatrix, bodyBase.JOINT_MATRIX);
+        bodyMatrix = LIBS.multiply(bodyMatrix, bodyBase.MOVE_MATRIX);
+        bodyMatrix = LIBS.multiply(bodyMatrix, bodyBase.POSITION_MATRIX);
+
+        // Matriks dunia leftArm
+        var armMatrix = LIBS.multiply(bodyMatrix, leftArm.JOINT_MATRIX);
+        armMatrix = LIBS.multiply(armMatrix, leftArm.MOVE_MATRIX);
+        armMatrix = LIBS.multiply(armMatrix, leftArm.POSITION_MATRIX);
+
+        // Posisi tengah telapak tangan dalam koordinat lokal shoulder
+        var x = 0;
+        var y = -0.42;
+        var z = 0;
+
+        // Konversi posisi lokal menjadi posisi dunia
+        return {
+            x: armMatrix[0] * x + armMatrix[4] * y + armMatrix[8] * z + armMatrix[12],
+            y: armMatrix[1] * x + armMatrix[5] * y + armMatrix[9] * z + armMatrix[13],
+            z: armMatrix[2] * x + armMatrix[6] * y + armMatrix[10] * z + armMatrix[14]
+        };
+    }
 
     // ================= PUBLIC API =================
     return {
+        bodyBase: bodyBase,
+        leftArm: leftArm,
+        rightArm: rightArm,
+        leftWheel: leftWheel,
+        rightWheel: rightWheel,
+        glassDome: glassDome,
+        stem: stem,
+        projectileMesh: projectileMesh,
+        getLeftHandWorldPosition: getLeftHandWorldPosition,
+
         // Dipanggil tiap frame dari script.js
         // projMatrix & viewMatrix = kamera bebas dari script.js
-        draw: function (time, projMatrix, viewMatrix) {
+        draw: function (time, projMatrix, viewMatrix, projectiles) {
             GL.useProgram(SHADER_PROGRAM);
 
             GL.enableVertexAttribArray(_position);
@@ -309,16 +350,17 @@ function initSprout(GL) {
             GL.uniformMatrix4fv(_Pmatrix, false, projMatrix);
             GL.uniformMatrix4fv(_Vmatrix, false, viewMatrix);
 
-            // Animasi tangan melambai
-            var speed   = 0.0025;
-            var armWave = Math.sin(time * speed) * 0.18;
-            LIBS.set_I4(leftArm.MOVE_MATRIX);
-            LIBS.rotateZ(leftArm.MOVE_MATRIX, -0.45 + armWave);
-            LIBS.set_I4(rightArm.MOVE_MATRIX);
-            LIBS.rotateZ(rightArm.MOVE_MATRIX, 0.45 - armWave);
-
             var identity = LIBS.get_I4();
             bodyBase.render(identity);
+
+            // Render semua proyektil aktif
+            if (projectiles && projectiles.length > 0) {
+                for (var i = 0; i < projectiles.length; i++) {
+                    var p = projectiles[i];
+                    LIBS.set_position(projectileMesh.JOINT_MATRIX, p.x, p.y, p.z);
+                    projectileMesh.render(identity);
+                }
+            }
         }
     };
 }
