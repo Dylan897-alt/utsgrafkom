@@ -61,9 +61,13 @@ function main() {
         var dx = e.clientX - xPrev, dy = e.clientY - yPrev;
         xPrev = e.clientX; yPrev = e.clientY;
         if (drag) {
-            if (cameraLocked) return;
-            CAM_THETA -= dx * 0.007;
-            CAM_PHI    = Math.max(0.05, Math.min(1.4, CAM_PHI + dy * 0.006));
+            if (cameraLocked) {
+                CAM_THETA -= dx * 0.007;
+                CAM_PHI = Math.max(-0.15, Math.min(1.25, CAM_PHI + dy * 0.006));
+            } else {
+                CAM_THETA -= dx * 0.007;
+                CAM_PHI = Math.max(0.05, Math.min(1.4, CAM_PHI + dy * 0.006));
+            }
         }
         if (rightDrag) {
             if (cameraLocked) return;
@@ -146,6 +150,11 @@ function main() {
     var boxSpawned   = false;
     var boxes        = [];
     var ultiUnlocked = false;
+    // Peti dekorasi yang selalu ada di environment; tidak bisa dibuka.
+    var envBoxes = [
+        { x: -7.5, z: 4.8, rot: -0.55, scale: 0.82 },
+        { x:  7.2, z: 5.6, rot:  0.72, scale: 0.9 }
+    ];
 
     // RNG — sama dengan spike.js (seed=7) supaya ROCKS/CACTI/dll konsisten
     var seed2 = 999;
@@ -263,6 +272,17 @@ function main() {
     var keys = {};
     window.addEventListener('keydown', function (e) {
         keys[e.code] = true;
+        if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) {
+            cameraLocked = !cameraLocked;
+            e.preventDefault();
+        }
+        if (e.code === 'KeyX' && !e.repeat) {
+            if (!spDead) {
+                spDead       = true;
+                spDeathStart = t;
+                spShooting   = false;
+            }
+        }
         if (e.code === 'Space') {
             if (!spDead && !spShooting) {
                 spShooting    = true;
@@ -298,10 +318,7 @@ function main() {
             e.preventDefault();
         }
     }, false);
-    window.addEventListener('keyup', function (e) {
-        keys[e.code] = false;
-        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') cameraLocked = false;
-    }, false);
+    window.addEventListener('keyup', function (e) { keys[e.code] = false; }, false);
 
     // ---- Fungsi gambar Power Box ----
     var gambarPeti = function (M, alpha) {
@@ -351,11 +368,17 @@ function main() {
         GL.clear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
 
         // ---- Kamera ----
-        var camTarget, eye;
+        var eye, camTarget;
         if (cameraLocked && stage === 'spike') {
-            var backX = -Math.sin(facing), backZ = -Math.cos(facing);
+            var orbitAngle = facing + CAM_THETA;
+            var orbitDist = Math.max(3, Math.min(16, CAM_DIST * 0.38));
+            var orbitH = Math.max(-0.15, Math.min(1.25, CAM_PHI));
+            eye = [
+                posX - Math.sin(orbitAngle) * orbitDist * Math.cos(orbitH),
+                1.5 + orbitDist * Math.sin(orbitH),
+                posZ - Math.cos(orbitAngle) * orbitDist * Math.cos(orbitH)
+            ];
             camTarget = [posX, 1.5, posZ];
-            eye = [posX + backX * 5, 3.0, posZ + backZ * 5];
         } else {
             var eyeX = CAM_PAN_X + CAM_DIST * Math.cos(CAM_PHI) * Math.sin(CAM_THETA);
             var eyeY = CAM_PAN_Y + CAM_DIST * Math.sin(CAM_PHI);
@@ -745,6 +768,15 @@ function main() {
             gambar(SPHERE, matrix_TS(cb, 0,2.3,0, 0.28,0.18,0.28), [0.95,0.4,0.6]);
         }
 
+        // ---- Peti dekorasi environment (statis, bukan hadiah skill) ----
+        for (var i = 0; i < envBoxes.length; i++) {
+            var envBox = envBoxes[i], ebm = LIBS.get_I4();
+            LIBS.translate(ebm, envBox.x, 0.35, envBox.z);
+            LIBS.rotateY(ebm, envBox.rot);
+            LIBS.scale(ebm, envBox.scale, envBox.scale, envBox.scale);
+            gambarPeti(ebm, 1);
+        }
+
         // ---- Musuh kaktus kecil ----
         if (enemyState === 'growing' || enemyState === 'alive' || enemyState === 'dying') {
             var ea  = t - enemyTime;
@@ -802,15 +834,17 @@ function main() {
         // ---- Power Box ----
         if (!boxSpawned && enemyState === 'dead') {
             boxSpawned = true;
+            // Tiga posisi terpisah agar box tidak saling menutupi dari kamera.
             for (var bi = 0; bi < 3; bi++) {
                 var angle = bi * TAU / 3;
-                var bx = enemyX + Math.cos(angle) * 1.15;
-                var bz = enemyZ + Math.sin(angle) * 1.15;
-                boxes.push({ state:'falling', pos:[bx,8,bz], start:t, openedAt:0 });
+                boxes.push({
+                    state: 'falling',
+                    pos: [enemyX + Math.cos(angle) * 1.35, 8, enemyZ + Math.sin(angle) * 1.35],
+                    start: t,
+                    openedAt: 0
+                });
             }
         }
-        var anyBoxAvailable = false;
-        var allBoxesDone = boxes.length === 3;
         for (var bi = 0; bi < boxes.length; bi++) {
             var box = boxes[bi];
             if (box.state === 'falling') {
@@ -818,11 +852,8 @@ function main() {
                 box.pos[1] = 8*(1-ft)*(1-ft)+0.35;
                 if (ft >= 1) box.state = 'ground';
             }
-            if (box.state === 'ground') {
-                anyBoxAvailable = true;
-                if (Math.hypot(posX-box.pos[0], posZ-box.pos[2]) < 1.3) {
-                    box.state = 'opening'; box.openedAt = t;
-                }
+            if (box.state === 'ground' && Math.hypot(posX-box.pos[0], posZ-box.pos[2]) < 1.3) {
+                box.state = 'opening'; box.openedAt = t;
             }
             if (box.state === 'falling' || box.state === 'ground' || box.state === 'opening' || box.state === 'fading') {
                 var bm = LIBS.get_I4();
@@ -848,9 +879,8 @@ function main() {
                     if (fp >= 1) box.state = 'done';
                 }
             }
-            if (box.state !== 'done') allBoxesDone = false;
         }
-        if (allBoxesDone) ultiUnlocked = true;
+        if (boxes.length === 3 && boxes.every(function (box) { return box.state === 'done'; })) ultiUnlocked = true;
 
         // ---- Karakter Spike ----
         gambar(SPHERE, matrix_TS(IDENTITY, posX,0.02,posZ, 1.05*shadowScale*bodyGrow,0.01,1.05*shadowScale*bodyGrow), [0,0,0], {mode:3});
@@ -1011,7 +1041,7 @@ function main() {
             else if (enemyState === 'growing' || enemyState === 'alive')
                 setObj('Hancurkan kaktus kecil dengan Skill (tekan E)');
             else if (enemyState === 'dying')  setObj('');
-            else if (!ultiUnlocked && boxes.length > 0)
+            else if (boxes.length > 0 && !ultiUnlocked)
                 setObj('Ambil Power Box! (WASD)');
             else if (ultiUnlocked && ultiClicks === 0) setObj('Ulti terbuka! Tekan R (2x untuk Flash)');
             else if (ultiClicks === 1) setObj('Tekan R sekali lagi!');
