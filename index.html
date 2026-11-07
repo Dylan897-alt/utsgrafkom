@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sprout, Spike &amp; Tick 3D - WebGL</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #123;
+      font-family: system-ui, sans-serif;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    /* Petunjuk kontrol di pojok kiri atas */
+    #h {
+      position: fixed;
+      left: 12px;
+      top: 10px;
+      color: #fff;
+      font-size: 13px;
+      line-height: 1.5;
+      text-shadow: 0 1px 3px #000;
+      pointer-events: none;
+    }
+
+    /* Teks tujuan (objective) di tengah atas */
+    #obj {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 12px;
+      text-align: center;
+      color: #fff;
+      font: 600 15px/1.4 system-ui, sans-serif;
+      text-shadow: 0 1px 4px #000;
+      pointer-events: none;
+    }
+
+    /* Layar putih untuk efek Ulti */
+    #flash {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="mycanvas"></canvas>
+
+  <div id="h">
+    <b>Sprout, Spike &amp; Tick 3D</b> (WebGL murni)<br />
+    <b>Kamera:</b> Drag Kiri = Orbit &middot; Drag Kanan = Pan &middot; Scroll = Zoom &middot; Shift = Toggle Ikuti Spike<br />
+    <b>Sprout:</b> Arrow Keys = Jalan &middot; Spasi = Tembak &middot; C = Scaling &middot; X = Mati<br />
+    <b>Spike:</b> Q = Siram Air / Wave &middot; WASD = Jalan &middot; E = Skill &middot; R = Ulti<br />
+    <b>Tick:</b> IJKL = Jalan &middot; U = Tembak &middot; O = Scaling &middot; P = Mati / Revive
+  </div>
+  <div id="obj"></div>
+  <div id="flash"></div>
+
+  <script src="libs.js"></script>
+  <script src="sprout.js"></script>
+  <script src="spike.js"></script>
+  <script src="tick.js"></script>
+  <script src="script.js"></script>
+</body>
+
+</html>

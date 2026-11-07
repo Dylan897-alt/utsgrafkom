@@ -1,0 +1,19 @@
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.log
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+CHANGELOG.md
