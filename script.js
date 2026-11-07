@@ -146,6 +146,7 @@ function main() {
     var tickScale       = 1.0;
     var tickTargetScale = 1.0;
     var tickDead        = false;
+    var tickDeadProgress = 0.0;
     var tickShootReq    = false;
 
     // Musuh kaktus kecil
@@ -242,7 +243,7 @@ function main() {
         spShooting = false; spProjectiles = [];
 
         // Reset Tick
-        tickDead = false; tickScale = 1.0; tickTargetScale = 1.0;
+        tickDead = false; tickDeadProgress = 0.0; tickScale = 1.0; tickTargetScale = 1.0;
         tickPosX = 0.0; tickPosZ = 2.2; tickHeading = 0.0;
         tickShootReq = false;
         if (tick) tick.reset();
@@ -693,6 +694,13 @@ function main() {
             tickScale += (tickTargetScale - tickScale) * Math.min(dt * 7, 1);
         }
 
+        // Progress animasi mati / hidup Tick untuk sinkronisasi bayangan
+        if (tickDead) {
+            tickDeadProgress = Math.min(1.0, tickDeadProgress + dt * 1.6);
+        } else {
+            tickDeadProgress = Math.max(0.0, tickDeadProgress - dt * 2.2);
+        }
+
         tick.update(dt, t, {
             px: tickPosX,
             pz: tickPosZ,
@@ -705,7 +713,7 @@ function main() {
         });
         tickShootReq = false;
 
-        tick.render(PROJMATRIX, VIEWMATRIX);
+        tick.render(PROJMATRIX, VIEWMATRIX, eye);
 
         // ================================================================
         //  RENDER SPIKE — set kamera ke shader Spike
@@ -847,15 +855,15 @@ function main() {
         }
         GL.depthMask(true);
 
-        // ---- Tanah, mesa, batu, kaktus dekorasi ----
-        gambar(GROUND, IDENTITY, [0.93,0.78,0.5], {mode:1,spec:0});
+        // ---- Tanah, mesa, batu, kaktus dekorasi (Pencahayaan Phong) ----
+        gambar(GROUND, IDENTITY, [0.93,0.78,0.5], {mode:1, spec:0.16});
         for (var i = 0; i < MESAS.length; i++) {
             var ms = MESAS[i];
-            gambar(CONE, matrix_TS(IDENTITY, Math.cos(ms.a)*32,0,Math.sin(ms.a)*32, ms.s,ms.s*.9,ms.s), [0.72,0.42,0.26], {spec:0});
+            gambar(CONE, matrix_TS(IDENTITY, Math.cos(ms.a)*32,0,Math.sin(ms.a)*32, ms.s,ms.s*.9,ms.s), [0.72,0.42,0.26], {spec:0.18});
         }
         for (var i = 0; i < ROCKS.length; i++) {
             var rk = ROCKS[i];
-            gambar(SPHERE, matrix_TS(IDENTITY, rk.x,0,rk.z, rk.s*1.3,rk.s*.7,rk.s), [0.62,0.48,0.38], {spec:.05});
+            gambar(SPHERE, matrix_TS(IDENTITY, rk.x,0,rk.z, rk.s*1.3,rk.s*.7,rk.s), [0.62,0.48,0.38], {spec:0.35});
         }
         for (var i = 0; i < CACTI.length; i++) {
             var ck = CACTI[i], cb = LIBS.get_I4();
@@ -863,9 +871,9 @@ function main() {
             LIBS.rotateY(cb, ck.i);
             LIBS.rotateZ(cb, 0.04 * Math.sin(t * 1.5 + ck.i));
             LIBS.scale(cb, ck.s, ck.s * 1.3, ck.s);
-            gambar(BODY, cb, [0.3,0.6,0.16]);
-            gambar(ARM,  matrix_TS(cb, 0.7,0.9,0.04, 1,1,1), [0.3,0.6,0.16]);
-            gambar(SPHERE, matrix_TS(cb, 0,2.3,0, 0.28,0.18,0.28), [0.95,0.4,0.6]);
+            gambar(BODY, cb, [0.3,0.6,0.16], {spec:0.28});
+            gambar(ARM,  matrix_TS(cb, 0.7,0.9,0.04, 1,1,1), [0.3,0.6,0.16], {spec:0.28});
+            gambar(SPHERE, matrix_TS(cb, 0,2.3,0, 0.28,0.18,0.28), [0.95,0.4,0.6], {spec:0.35});
         }
 
         // ---- Peti dekorasi environment (statis, bukan hadiah skill) ----
@@ -1000,6 +1008,18 @@ function main() {
 
         // ---- Karakter Spike ----
         gambar(SPHERE, matrix_TS(IDENTITY, posX,0.02,posZ, 1.05*shadowScale*bodyGrow,0.01,1.05*shadowScale*bodyGrow), [0,0,0], {mode:3});
+
+        // ---- Bayangan Karakter Tick (persis bayangan Spike di atas lantai) ----
+        var tickShadowRadX = 1.30 * tickScale;
+        var tickShadowRadZ = (1.30 + 0.35 * tickDeadProgress) * tickScale;
+        var tickFwd = tickDeadProgress * 0.65 * tickScale;
+        var tickShX = tickPosX + Math.sin(tickHeading) * tickFwd;
+        var tickShZ = tickPosZ + Math.cos(tickHeading) * tickFwd;
+        var tickShadowM = LIBS.get_I4();
+        LIBS.translate(tickShadowM, tickShX, 0.02, tickShZ);
+        LIBS.rotateY(tickShadowM, tickHeading);
+        LIBS.scale(tickShadowM, tickShadowRadX, 0.01, tickShadowRadZ);
+        gambar(SPHERE, tickShadowM, [0, 0, 0], { mode: 3 });
 
         // Kaki
         var SISI_K = [[1, legAngL], [-1, legAngR]];

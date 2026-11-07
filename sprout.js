@@ -71,7 +71,7 @@ class SproutObject {
 // ============================================================
 function initSprout(GL) {
 
-    // ================= SHADERS SPROUT =================
+    // ================= SHADERS SPROUT (PHONG SHADING) =================
     var sprout_vertex_source = `
         attribute vec3 position;
         attribute vec4 color;
@@ -83,15 +83,18 @@ function initSprout(GL) {
 
         varying vec4 vColor;
         varying vec3 vNormal;
-        varying vec3 vFragPos;
+        varying vec3 vPos;
+        varying vec3 vLight;
 
         void main(void) {
-            vec4 worldPos = SP_Mmatrix * vec4(position, 1.0);
-            gl_Position = SP_Pmatrix * SP_Vmatrix * worldPos;
+            vec4 vp = SP_Vmatrix * SP_Mmatrix * vec4(position, 1.0);
+            gl_Position = SP_Pmatrix * vp;
 
             vColor = color;
-            vNormal = normalize(mat3(SP_Mmatrix) * normal);
-            vFragPos = vec3(worldPos);
+            vPos = vp.xyz;
+            vNormal = (SP_Vmatrix * SP_Mmatrix * vec4(normal, 0.0)).xyz;
+            // Cahaya seragam arah sinar matahari (0.5, 0.9, 0.7) dalam view space
+            vLight = (SP_Vmatrix * vec4(normalize(vec3(0.5, 0.9, 0.7)), 0.0)).xyz;
         }
     `;
 
@@ -100,20 +103,23 @@ function initSprout(GL) {
 
         varying vec4 vColor;
         varying vec3 vNormal;
-        varying vec3 vFragPos;
+        varying vec3 vPos;
+        varying vec3 vLight;
 
         void main(void) {
-            vec3 normal = normalize(vNormal);
-            vec3 lightDir = normalize(vec3(-0.3, 0.8, 0.9));
+            vec3 N = normalize(vNormal);
+            vec3 V = normalize(-vPos);
+            if (dot(N, V) < 0.0) N = -N; // Pencahayaan dua sisi
 
+            vec3 L = normalize(vLight);
             float ambient = 0.55;
-            float diffuse = max(dot(normal, lightDir), 0.0) * 0.45;
+            float diffuse = max(dot(N, L), 0.0) * 0.55;
 
-            vec3 viewDir = normalize(vec3(0.0, 0.0, 8.0) - vFragPos);
-            vec3 halfDir = normalize(lightDir + viewDir);
-            float spec = pow(max(dot(normal, halfDir), 0.0), 16.0) * 0.2;
+            // Model Pencahayaan Phong: Specular R . V
+            vec3 R = reflect(-L, N);
+            float spec = pow(max(dot(R, V), 0.0), 32.0) * 0.28;
 
-            vec3 rgb = vColor.rgb * (ambient + diffuse) + vec3(spec);
+            vec3 rgb = vColor.rgb * (ambient + diffuse) + vec3(1.0, 0.98, 0.92) * spec;
             gl_FragColor = vec4(rgb, vColor.a);
         }
     `;

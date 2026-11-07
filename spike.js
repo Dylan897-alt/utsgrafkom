@@ -59,7 +59,10 @@ function initSpike(GL) {
             float lambert = max(dot(N, L), 0.);
             vec3 hemi = mix(vec3(.35, .25, .4), vec3(.6, .7, .8), N.y * .5 + .5);
             vec3 I = color * (hemi * .55 + vec3(1., .95, .85) * lambert * .75);
-            I += vec3(1.) * pow(max(dot(N, normalize(L + V)), 0.), 36.) * SK_specular_amount;
+            // Model Pencahayaan Phong: Specular R . V
+            vec3 R = reflect(-L, N);
+            float specPhong = pow(max(dot(R, V), 0.), 32.) * SK_specular_amount;
+            I += vec3(1., .98, .90) * specPhong;
             I += vec3(.6, .8, 1.) * pow(1. - max(dot(N, V), 0.), 3.) * .22;
             gl_FragColor = vec4(I, SK_alpha);
         }`;

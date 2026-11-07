@@ -37,8 +37,10 @@ function initTick(GL) {
             if (dot(n, V) < 0.0) n = -n;
             vec3 l = normalize(vL);
             float d = max(dot(n, l), 0.0);
-            float s = pow(max(dot(n, normalize(l + V)), 0.0), 40.0) * 0.25;
-            gl_FragColor = vec4(vColor.rgb * (0.55 + 0.60 * d) + s, vColor.a);
+            // Model Pencahayaan Phong: Specular R . V
+            vec3 r = reflect(-l, n);
+            float s = pow(max(dot(r, V), 0.0), 32.0) * 0.28;
+            gl_FragColor = vec4(vColor.rgb * (0.55 + 0.60 * d) + vec3(1.0, 0.98, 0.92) * s, vColor.a);
         }`;
 
     function compile_shader(source, type, typeString) {
