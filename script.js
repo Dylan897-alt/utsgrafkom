@@ -1009,6 +1009,22 @@ function main() {
         // ---- Karakter Spike ----
         gambar(SPHERE, matrix_TS(IDENTITY, posX,0.02,posZ, 1.05*shadowScale*bodyGrow,0.01,1.05*shadowScale*bodyGrow), [0,0,0], {mode:3});
 
+        // ---- Bayangan Karakter Sprout (persis bayangan Spike & Tick di atas lantai) ----
+        var spFallDirX = sprout.bodyBase.MOVE_MATRIX[4];
+        var spFallDirZ = sprout.bodyBase.MOVE_MATRIX[6];
+        var spShadowRot = Math.hypot(spFallDirX, spFallDirZ) > 1e-4
+            ? Math.atan2(spFallDirX, spFallDirZ)
+            : spFacing;
+        var spShadowRadX = 1.35 * spScale;
+        var spShadowRadZ = (1.35 + 0.40 * spFallProgress) * spScale;
+        var spShX = spPosX + spFallDirX * 0.55;
+        var spShZ = spPosZ + spFallDirZ * 0.55;
+        var spShadowM = LIBS.get_I4();
+        LIBS.translate(spShadowM, spShX, 0.02, spShZ);
+        LIBS.rotateY(spShadowM, spShadowRot);
+        LIBS.scale(spShadowM, spShadowRadX, 0.01, spShadowRadZ);
+        gambar(SPHERE, spShadowM, [0, 0, 0], { mode: 3 });
+
         // ---- Bayangan Karakter Tick (persis bayangan Spike di atas lantai) ----
         var tickShadowRadX = 1.30 * tickScale;
         var tickShadowRadZ = (1.30 + 0.35 * tickDeadProgress) * tickScale;

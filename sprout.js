@@ -113,7 +113,7 @@ function initSprout(GL) {
 
             vec3 L = normalize(vLight);
             float ambient = 0.55;
-            float diffuse = max(dot(N, L), 0.0) * 0.55;
+            float diffuse = max(dot(N, L), 0.0) * 0.60;
 
             // Model Pencahayaan Phong: Specular R . V
             vec3 R = reflect(-L, N);
